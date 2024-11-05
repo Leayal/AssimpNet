@@ -34,7 +34,18 @@ namespace Assimp.Unmanaged
     /// </summary>
     public abstract class UnmanagedLibrary
     {
-        private static Object s_defaultLoadSync = new Object();
+        private static readonly Object s_defaultLoadSync = new Object();
+
+        private static UnmanagedLibraryResolver s_defaultResolver;
+
+        /// <summary>
+        /// Sets the default <seealso cref="UnmanagedLibraryResolver"/> to be used whenever loading Assimp native library.
+        /// </summary>
+        /// <param name="resolver">Can be <see langword="null"/>. When constructor of <seealso cref="UnmanagedLibrary"/> called while the default resolver is <see langword="null"/>, those constructed <seealso cref="UnmanagedLibrary"/> instances own their own resolver. This means only affecting at instance creations, not existing ones.</param>
+        public static void SetDefaultResolver(UnmanagedLibraryResolver resolver)
+        {
+            s_defaultResolver = resolver;
+        }
 
         private UnmanagedLibraryImplementation m_impl;
         private UnmanagedLibraryResolver m_resolver;
@@ -284,12 +295,13 @@ namespace Assimp.Unmanaged
         private void CreateRuntimeImplementation(String defaultLibName, Type[] unmanagedFunctionDelegateTypes)
         {
             Platform platform = GetPlatform();
-            m_resolver = new UnmanagedLibraryResolver(platform);
+            m_resolver = s_defaultResolver ?? new UnmanagedLibraryResolver(platform);
             m_impl = CreateRuntimeImplementationForPlatform(platform, defaultLibName, unmanagedFunctionDelegateTypes);
         }
 
         private UnmanagedLibraryImplementation CreateRuntimeImplementationForPlatform(Platform platform, String defaultLibName, Type[] unmanagedFunctionDelegateTypes)
         {
+
             switch(platform)
             {
                 case Platform.Windows:

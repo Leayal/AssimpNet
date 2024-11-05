@@ -24,6 +24,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace Assimp.Unmanaged
 {
@@ -58,6 +59,19 @@ namespace Assimp.Unmanaged
             {
                 return m_platform;
             }
+        }
+
+        /// <summary>
+        /// Constructs a new instance of the <see cref="UnmanagedLibraryResolver"/> class.
+        /// </summary>
+        public UnmanagedLibraryResolver() : this(
+            /* Without using multiple lines, it will be a mess for any sane souls to read. */
+            (OperatingSystem.IsWindows() || RuntimeInformation.OSDescription.Contains("Microsoft Windows")) ? Platform.Windows : 
+            (OperatingSystem.IsLinux() ? Platform.Linux : 
+            (OperatingSystem.IsMacOS() || OperatingSystem.IsMacCatalyst()) ? Platform.Mac : 
+            throw new PlatformNotSupportedException()))
+        {
+
         }
 
         /// <summary>
@@ -205,12 +219,13 @@ namespace Assimp.Unmanaged
 
         private String ResolveLibraryPathInternal(String libName, String rid, String[] fallbackNames, String[] probingPaths)
         {
+            String potentialPath;
             //Check user-specified probing paths
-            if(probingPaths != null)
+            if (probingPaths != null)
             {
                 foreach(String probingPath in probingPaths)
                 {
-                    String potentialPath = TryGetExistingFile(probingPath, libName, fallbackNames);
+                    potentialPath = TryGetExistingFile(probingPath, libName, fallbackNames);
                     if(!String.IsNullOrEmpty(potentialPath))
                         return potentialPath;
                 }
@@ -219,12 +234,9 @@ namespace Assimp.Unmanaged
             var currentProbingDir = PlatformHelper.GetAppBaseDirectory();
             //Check runtimes folder based on RID
             String runtimeFolder = GetPackageRuntimeFolder(currentProbingDir, rid);
-            if(Directory.Exists(runtimeFolder))
-            {
-                String potentialPath = TryGetExistingFile(runtimeFolder, libName, fallbackNames);
-                if(!String.IsNullOrEmpty(potentialPath))
-                    return potentialPath;
-            }
+            potentialPath = TryGetExistingFile(runtimeFolder, libName, fallbackNames);
+            if (!String.IsNullOrEmpty(potentialPath))
+                return potentialPath;
 
             //Check base directory
             String pathInAppFolder = TryGetExistingFile(currentProbingDir, libName, fallbackNames);
@@ -234,18 +246,17 @@ namespace Assimp.Unmanaged
             var assemblyPath = Assembly.GetExecutingAssembly().Location;
             if (!string.IsNullOrEmpty(assemblyPath))
             {
-                currentProbingDir = assemblyPath;
-                //Check runtimes folder based on RID relative to the current .dll file
-                runtimeFolder = GetPackageRuntimeFolder(currentProbingDir, rid);
-                if (Directory.Exists(runtimeFolder))
-                {
-                    String potentialPath = TryGetExistingFile(runtimeFolder, libName, fallbackNames);
-                    if (!String.IsNullOrEmpty(potentialPath))
-                        return potentialPath;
-                }
+                //Check runtimes folder based on RID relative to the current .dll file                
+                potentialPath = TryGetExistingFile(GetPackageRuntimeFolder(assemblyPath, rid), libName, fallbackNames);
+                if (!String.IsNullOrEmpty(potentialPath))
+                    return potentialPath;
+
+                potentialPath = TryGetExistingFile(Path.Combine(assemblyPath, GetRIDArch()), libName, fallbackNames);
+                if (!String.IsNullOrEmpty(potentialPath))
+                    return potentialPath;
 
                 // Check base directory of the .dll file
-                pathInAppFolder = TryGetExistingFile(currentProbingDir, libName, fallbackNames);
+                pathInAppFolder = TryGetExistingFile(assemblyPath, libName, fallbackNames);
                 if (!String.IsNullOrEmpty(pathInAppFolder))
                     return pathInAppFolder;
             }

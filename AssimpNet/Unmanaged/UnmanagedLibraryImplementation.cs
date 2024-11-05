@@ -27,30 +27,18 @@ using System.Runtime.InteropServices;
 
 namespace Assimp.Unmanaged
 {
-    internal abstract class UnmanagedLibraryImplementation : IDisposable
+    internal abstract class UnmanagedLibraryImplementation : SafeHandle
     {
         private String m_defaultLibName;
         private Type[] m_unmanagedFunctionDelegateTypes;
         private Dictionary<String, Delegate> m_nameToUnmanagedFunction;
-        private IntPtr m_libraryHandle;
-        private bool m_isDisposed;
         private bool m_throwOnLoadFailure;
 
-        public bool IsLibraryLoaded
-        {
-            get
-            {
-                return m_libraryHandle != IntPtr.Zero;
-            }
-        }
+        public bool IsLibraryLoaded => !this.IsInvalid;
 
-        public bool IsDisposed
-        {
-            get
-            {
-                return m_isDisposed;
-            }
-        }
+        public bool IsDisposed => base.IsClosed;
+
+        public override bool IsInvalid => this.handle == IntPtr.Zero;
 
         public String DefaultLibraryName
         {
@@ -76,15 +64,13 @@ namespace Assimp.Unmanaged
 
         public virtual String DllPrefix { get { return String.Empty; } }
 
-        public UnmanagedLibraryImplementation(String defaultLibName, Type[] unmanagedFunctionDelegateTypes)
+        public UnmanagedLibraryImplementation(String defaultLibName, Type[] unmanagedFunctionDelegateTypes) : base(IntPtr.Zero, true)
         {
             m_defaultLibName = DllPrefix + Path.ChangeExtension(defaultLibName, DllExtension);
 
             m_unmanagedFunctionDelegateTypes = unmanagedFunctionDelegateTypes;
 
             m_nameToUnmanagedFunction = new Dictionary<String, Delegate>();
-            m_isDisposed = false;
-            m_libraryHandle = IntPtr.Zero;
 
             m_throwOnLoadFailure = true;
         }
@@ -112,7 +98,8 @@ namespace Assimp.Unmanaged
         {
             FreeLibrary(true);
 
-            m_libraryHandle = NativeLoadLibrary(path);
+            var m_libraryHandle = NativeLoadLibrary(path);
+            this.SetHandle(m_libraryHandle);
 
             if(m_libraryHandle != IntPtr.Zero)
                 LoadFunctions();
@@ -122,12 +109,14 @@ namespace Assimp.Unmanaged
 
         public bool FreeLibrary()
         {
-            return FreeLibrary(true);
+            this.Close();
+            return true;
         }
 
         private bool FreeLibrary(bool clearFunctions)
         {
-            if(m_libraryHandle != IntPtr.Zero)
+            var m_libraryHandle = this.handle;
+            if (m_libraryHandle != IntPtr.Zero)
             {
                 NativeFreeLibrary(m_libraryHandle);
                 m_libraryHandle = IntPtr.Zero;
@@ -152,7 +141,7 @@ namespace Assimp.Unmanaged
                     continue;
                 }
 
-                IntPtr procAddr = NativeGetProcAddress(m_libraryHandle, funcName);
+                IntPtr procAddr = NativeGetProcAddress(this.handle, funcName);
                 if(procAddr == IntPtr.Zero)
                 {
                     System.Diagnostics.Debug.Assert(false, String.Format("No unmanaged function found for {0} type.", funcType.AssemblyQualifiedName));
@@ -180,25 +169,41 @@ namespace Assimp.Unmanaged
             return null;
         }
 
-        protected abstract IntPtr NativeLoadLibrary(String path);
-        protected abstract void NativeFreeLibrary(IntPtr handle);
-        protected abstract IntPtr NativeGetProcAddress(IntPtr handle, String functionName);
-
-        public void Dispose()
+        protected virtual IntPtr NativeLoadLibrary(String path)
         {
-            Dispose(true);
+            try
+            {
+                var libraryHandle = NativeLibrary.Load(path);
+                return libraryHandle;
+            }
+            catch (Exception ex)
+            {
+                if (ThrowOnLoadFailure)
+                {
+                    throw new AssimpException(String.Format("Error loading unmanaged library from path: {0}\n\n{1}", path, ex.Message), ex);
+                }
+            }
 
-            GC.SuppressFinalize(this);
+            if (ThrowOnLoadFailure)
+                throw new AssimpException(String.Format("Error loading unmanaged library from path: {0}", path));
+
+            return IntPtr.Zero;
         }
 
-        protected virtual void Dispose(bool isDisposing)
+        protected virtual void NativeFreeLibrary(IntPtr handle)
         {
-            if(!m_isDisposed)
-            {
-                FreeLibrary(isDisposing);
+            NativeLibrary.Free(handle);
+        }
 
-                m_isDisposed = true;
-            }
+        protected virtual IntPtr NativeGetProcAddress(IntPtr handle, String functionName)
+        {
+            if (NativeLibrary.TryGetExport(handle, functionName, out var funcPtr)) return funcPtr;
+            return IntPtr.Zero;
+        }
+
+        protected override bool ReleaseHandle()
+        {
+            return FreeLibrary(true);
         }
     }
 }

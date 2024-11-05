@@ -29,13 +29,7 @@ namespace Assimp.Unmanaged
 {
     internal sealed class UnmanagedUwpLibraryImplementation : UnmanagedLibraryImplementation
     {
-        public override String DllExtension
-        {
-            get
-            {
-                return ".dll";
-            }
-        }
+        public override String DllExtension => ".dll";
 
         public UnmanagedUwpLibraryImplementation(String defaultLibName, Type[] unmanagedFunctionDelegateTypes)
             : base(defaultLibName, unmanagedFunctionDelegateTypes)
