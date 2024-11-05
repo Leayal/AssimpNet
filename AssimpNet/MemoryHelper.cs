@@ -980,12 +980,16 @@ namespace Assimp
         /// <param name="count">Number of elements to copy</param>
         public static unsafe void Read<T>(IntPtr pSrc, T[] data, int startIndexInArray, int count) where T : struct
         {
-            Span<T> spanOfData = new Span<T>(data, startIndexInArray, count);
+            Span<T> dst = new Span<T>(data, startIndexInArray, count);
+            Span<T> src = new Span<T>(pSrc.ToPointer(), count);
+            src.CopyTo(dst);
+            /*
             var size = Unsafe.SizeOf<T>();
             for (int i = 0; i < count; i++)
             {
                 spanOfData[i] = Unsafe.ReadUnaligned<T>(IntPtr.Add(pSrc, i * size).ToPointer());
             }
+            */
         }
 
         /// <summary>
@@ -1020,13 +1024,9 @@ namespace Assimp
         /// <param name="count">Number of elements to copy</param>
         public static unsafe void Write<T>(IntPtr pDest, T[] data, int startIndexInArray, int count) where T : struct
         {
-            ReadOnlySpan<T> spanOfData = data;
-            var size = Unsafe.SizeOf<T>();
-            for (int i = 0; i < count; i++)
-            {
-                ref readonly var currentSlot = ref spanOfData[startIndexInArray + i];
-                Unsafe.WriteUnaligned<T>(IntPtr.Add(pDest, i * size).ToPointer(), currentSlot);
-            }
+            Span<T> dst = new Span<T>(pDest.ToPointer(), count);
+            Span<T> src = new Span<T>(data, startIndexInArray, count);
+            src.CopyTo(dst);
         }
 
         /// <summary>
