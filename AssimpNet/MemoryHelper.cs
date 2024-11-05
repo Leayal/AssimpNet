@@ -43,8 +43,8 @@ namespace Assimp
     /// </summary>
     public static class MemoryHelper
     {
-        private static Dictionary<Type, INativeCustomMarshaler> s_customMarshalers = new Dictionary<Type, INativeCustomMarshaler>();
-        private static Dictionary<Object, GCHandle> s_pinnedObjects = new Dictionary<Object, GCHandle>();
+        private static readonly Dictionary<Type, INativeCustomMarshaler> s_customMarshalers = new Dictionary<Type, INativeCustomMarshaler>();
+        private static readonly Dictionary<Object, GCHandle> s_pinnedObjects = new Dictionary<Object, GCHandle>();
 
         #region Marshaling Interop
 
@@ -980,11 +980,11 @@ namespace Assimp
         /// <param name="count">Number of elements to copy</param>
         public static unsafe void Read<T>(IntPtr pSrc, T[] data, int startIndexInArray, int count) where T : struct
         {
-            Span<T> spanOfData = data;
+            Span<T> spanOfData = new Span<T>(data, startIndexInArray, count);
             var size = Unsafe.SizeOf<T>();
             for (int i = 0; i < count; i++)
             {
-                spanOfData[startIndexInArray + i] = Unsafe.ReadUnaligned<T>(IntPtr.Add(pSrc, i * size).ToPointer());
+                spanOfData[i] = Unsafe.ReadUnaligned<T>(IntPtr.Add(pSrc, i * size).ToPointer());
             }
         }
 
