@@ -43,6 +43,12 @@
     <Content Include="AssimpNet.targets" Link="nuget\build\AssimpNet.targets" PackagePath="build" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="MemoryInterop.ILPatcher" Version="2.2.1">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
   <!-- Copies Unity plugin files into a folder with Release build DLLs which can be drag n dropped into a unity project -->
   <!--<Import Project="..\UnityPlugin\UnityPlugin.targets" />-->
 
